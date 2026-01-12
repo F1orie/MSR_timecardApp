@@ -18,7 +18,12 @@ export default async function AdminLayout({
 
     const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select(`
+            role,
+            departments (
+                name
+            )
+        `)
         .eq('id', user.id)
         .single()
 
@@ -35,6 +40,11 @@ export default async function AdminLayout({
                     <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-400">
                         管理画面
                     </h2>
+                    {profile?.departments?.name && (
+                        <div className="mt-2 text-sm text-gray-400 font-medium">
+                            {profile.departments.name}
+                        </div>
+                    )}
                 </div>
 
                 <nav className="flex-1 p-4 space-y-2">

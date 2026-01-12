@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { createClient } from '@/utils/supabase/server'
 import { generateAuthEmail } from '@/utils/auth-helpers'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -11,25 +12,34 @@ export async function createMember(prevState: any, formData: FormData) {
     const fullName = formData.get('fullName') as string
     const username = (formData.get('username') as string).trim()
     const contactEmail = (formData.get('contactEmail') as string || '').trim() || null
-    const departmentCode = (formData.get('department') as string).trim()
+    // Authenticate Admin
+    const supabase = await createClient() // standard client for auth check
+    const { data: { user: adminUser } } = await supabase.auth.getUser()
+    if (!adminUser) return { error: 'Unauthorized' }
 
-    // Generate dummy email for Auth if username is provided
-    // If we have a department code, use it in the domain?
-    // Plan says: [username]@[dept_code].local
-    // But for now, let's stick to simple logic or follow the plan.
-    // Plan: [username]@[dept_code].local
+    // Get Admin's Department Code
+    const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select(`
+            department_id,
+            departments (code)
+        `)
+        .eq('id', adminUser.id)
+        .single()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const departmentCode = (adminProfile?.departments as any)?.code
+
+    if (!departmentCode) {
+        return { error: 'Admin department not found' }
+    }
 
     let emailForAuth: string | null = null
 
     // Always prioritize Username + Dept for Auth if available
     if (username && departmentCode) {
         emailForAuth = generateAuthEmail(username, departmentCode)
-    } else if (username) {
-        // Fallback if no department selected (should not happen for normal members but just in case)
-        // Using 'default' as dummy dept code
-        emailForAuth = generateAuthEmail(username, 'default')
     } else if (contactEmail) {
-        // Only if NO username is provided, try to use contact email (e.g. creating another Admin via this form?)
         emailForAuth = contactEmail
     }
 

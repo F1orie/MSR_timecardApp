@@ -17,7 +17,12 @@ export default async function Home() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select(`
+      role,
+      departments (
+        name
+      )
+    `)
     .eq('id', user.id)
     .single()
 
@@ -51,7 +56,7 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-black">
-      <Header user={user} role={role} />
+      <Header user={user} role={role} departmentName={profile?.departments?.name} />
 
       <div className="container mx-auto p-8">
         <div className="max-w-4xl mx-auto">

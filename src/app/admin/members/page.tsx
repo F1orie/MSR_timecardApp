@@ -12,11 +12,8 @@ export default async function MembersPage() {
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false })
-    // Fetch departments
-    const { data: departments } = await supabase
-        .from('departments')
-        .select('*')
-        .order('name')
+    // Fetch departments (Removed for single tenant mode)
+    // const { data: departments } = await supabase...
 
     const profiles = profilesData as Profile[] | null
 
@@ -86,7 +83,7 @@ export default async function MembersPage() {
                 <div className="lg:col-span-1">
                     <div className="glass-panel p-6 sticky top-6">
                         <h3 className="text-lg font-semibold text-white mb-4">新規従業員登録</h3>
-                        <AddMemberForm departments={departments || []} />
+                        <AddMemberForm />
                     </div>
                 </div>
             </div>

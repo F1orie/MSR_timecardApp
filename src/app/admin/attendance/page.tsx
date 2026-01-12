@@ -1,6 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
-import AttendanceFilter from './attendance-filter'
 
 export default async function AdminAttendancePage({
     searchParams,
@@ -17,17 +16,9 @@ export default async function AdminAttendancePage({
         redirect('/login')
     }
 
-    const resolvedSearchParams = await searchParams
-    const departmentFilter = resolvedSearchParams.department as string | undefined
-
-    // Fetch departments for filter dropdown
-    const { data: departments } = await supabase
-        .from('departments')
-        .select('*')
-        .order('name')
-
     // Build Query
-    let query = supabase
+    // RLS policies ensure Admins only see records from their department
+    const query = supabase
         .from('attendance_records')
         .select(`
             *,
@@ -43,10 +34,6 @@ export default async function AdminAttendancePage({
         `)
         .order('date', { ascending: false })
 
-    if (departmentFilter) {
-        query = query.eq('profiles.department_id', departmentFilter)
-    }
-
     const { data: attendanceData } = await query
 
     return (
@@ -56,7 +43,7 @@ export default async function AdminAttendancePage({
             </div>
 
             {/* Filter Section */}
-            <AttendanceFilter departments={departments || []} />
+            {/* Filter Section Removed */}
 
             <div className="glass-panel p-6 overflow-hidden">
                 <div className="overflow-x-auto">

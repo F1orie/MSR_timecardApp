@@ -8,7 +8,7 @@ const initialState = {
     error: '',
 }
 
-export default function AddMemberForm({ departments }: { departments: any[] }) {
+export default function AddMemberForm() {
     // @ts-expect-error - useActionState type mismatch with Server Action Return Type in Next.js 15 RC sometimes
     const [state, formAction, isPending] = useActionState(createMember, initialState)
 
@@ -32,21 +32,8 @@ export default function AddMemberForm({ departments }: { departments: any[] }) {
                     required
                 />
             </div>
-            <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">部署</label>
-                <select
-                    name="department"
-                    required
-                    className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                >
-                    <option value="">部署を選択</option>
-                    {departments.map((dept) => (
-                        <option key={dept.id} value={dept.code}>
-                            {dept.name} ({dept.code})
-                        </option>
-                    ))}
-                </select>
-            </div>
+
+            {/* Department selection removed - automatically assigned to Admin's department */}
 
             <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-300">連絡先メールアドレス (任意)</label>
