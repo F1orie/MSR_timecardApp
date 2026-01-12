@@ -1,13 +1,13 @@
 -- Enable Row Level Security (RLS) for all tables
--- Users should only be able to view/edit their own data (except Admins maybe later)
 
 -- 1. PROFILES Table (Extends auth.users)
+-- Managed via Triggers on auth.users
 create table public.profiles (
   id uuid not null references auth.users(id) on delete cascade,
   full_name text,
   role text default 'employee' check (role in ('admin', 'employee')),
   hourly_wage integer default 1000,
-  commuter_pass_route jsonb,
+  commuter_pass_price integer default 0, -- Monthly commuter pass cost
   created_at timestamptz default now(),
   primary key (id)
 );
@@ -37,52 +37,63 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 
--- 2. ATTENDANCE_LOGS Table
-create table public.attendance_logs (
+-- 2. ATTENDANCE_RECORDS Table
+create table public.attendance_records (
   id uuid default gen_random_uuid() primary key,
   user_id uuid not null references public.profiles(id) on delete cascade,
-  date date not null,
-  start_time timestamptz,
-  end_time timestamptz,
-  break_minutes integer default 0,
-  status text default 'working' check (status in ('working', 'completed', 'absent')),
+  date date not null default current_date,
+  clock_in timestamptz,
+  clock_out timestamptz,
+  transport_route text, -- Manual entry for route (e.g., "Shinjuku -> Shibuya")
+  transport_cost integer default 0, -- Manual entry for cost
   created_at timestamptz default now()
 );
 
-alter table public.attendance_logs enable row level security;
+alter table public.attendance_records enable row level security;
 
 create policy "Users can view their own attendance"
-on public.attendance_logs for select
+on public.attendance_records for select
 using ( auth.uid() = user_id );
 
+-- Allow users to insert their own records
 create policy "Users can insert their own attendance"
-on public.attendance_logs for insert
+on public.attendance_records for insert
 with check ( auth.uid() = user_id );
 
+-- Allow users to update their own records
 create policy "Users can update their own attendance"
-on public.attendance_logs for update
+on public.attendance_records for update
 using ( auth.uid() = user_id );
 
 
--- 3. TRANSPORTATION_EXPENSES Table
-create table public.transportation_expenses (
+-- 3. BREAK_RECORDS Table
+-- Supports multiple breaks per day
+create table public.break_records (
   id uuid default gen_random_uuid() primary key,
-  attendance_id uuid not null references public.attendance_logs(id) on delete cascade,
-  route_description text,
-  cost integer default 0,
-  is_pass_covered boolean default false,
+  attendance_record_id uuid not null references public.attendance_records(id) on delete cascade,
+  start_time timestamptz not null,
+  end_time timestamptz,
   created_at timestamptz default now()
 );
 
-alter table public.transportation_expenses enable row level security;
+alter table public.break_records enable row level security;
 
--- Policy: Accessible if the related attendance log belongs to the user
-create policy "Users can manage their own transportation expenses"
-on public.transportation_expenses for all
+create policy "Users can view their own breaks"
+on public.break_records for select
 using (
   exists (
-    select 1 from public.attendance_logs
-    where public.attendance_logs.id = public.transportation_expenses.attendance_id
-    and public.attendance_logs.user_id = auth.uid()
+    select 1 from public.attendance_records
+    where public.attendance_records.id = public.break_records.attendance_record_id
+    and public.attendance_records.user_id = auth.uid()
+  )
+);
+
+create policy "Users can manage their own breaks"
+on public.break_records for all
+using (
+  exists (
+    select 1 from public.attendance_records
+    where public.attendance_records.id = public.break_records.attendance_record_id
+    and public.attendance_records.user_id = auth.uid()
   )
 );
