@@ -33,16 +33,20 @@ export default async function AdminLayout({
             <aside className="w-64 glass-panel m-4 flex flex-col">
                 <div className="p-6 border-b border-white/10">
                     <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-400">
-                        Admin
+                        管理画面
                     </h2>
                 </div>
 
                 <nav className="flex-1 p-4 space-y-2">
-                    <a href="/admin/members" className="block px-4 py-2 rounded-lg bg-white/5 text-white hover:bg-white/10 transition-colors">
-                        Members
+                    <a href="/admin" className="block px-4 py-2 rounded-lg text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
+                        ダッシュボード
                     </a>
+                    <a href="/admin/members" className="block px-4 py-2 rounded-lg text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
+                        従業員管理
+                    </a>
+                    {/* 部署管理はシングルテナント仕様のため非表示 */}
                     <a href="/admin/attendance" className="block px-4 py-2 rounded-lg text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
-                        Attendance
+                        勤怠管理
                     </a>
                 </nav>
 
@@ -54,7 +58,7 @@ export default async function AdminLayout({
                         redirect('/login')
                     }}>
                         <button className="w-full px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2">
-                            Log Out
+                            ログアウト
                         </button>
                     </form>
                 </div>

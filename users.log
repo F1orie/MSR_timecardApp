@@ -1,0 +1,10 @@
+
+--- Registered Users ---
+User: admin | Name: admin | Role: admin | DeptCode: 152 | DeptName: TEST
+User: RYOTA | Name: 土田凌大 | Role: employee | DeptCode: 416 | DeptName: ABC
+User: CC2 | Name: CC2 | Role: admin | DeptCode: 940 | DeptName: CC2
+
+To login as a worker:
+1. Department Code: (See DeptCode column above)
+2. User Name: (See User column above)
+3. Password: (Same as User Name)

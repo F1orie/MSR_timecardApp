@@ -14,6 +14,9 @@ export interface Database {
                     id: string
                     full_name: string | null
                     role: 'admin' | 'employee'
+                    username: string | null
+                    contact_email: string | null
+                    department_id: string | null
                     hourly_wage: number | null
                     commuter_pass_price: number | null
                     created_at: string
@@ -22,6 +25,8 @@ export interface Database {
                     id: string
                     full_name?: string | null
                     role?: 'admin' | 'employee'
+                    username?: string | null
+                    contact_email?: string | null
                     hourly_wage?: number | null
                     commuter_pass_price?: number | null
                     created_at?: string
@@ -30,6 +35,8 @@ export interface Database {
                     id?: string
                     full_name?: string | null
                     role?: 'admin' | 'employee'
+                    username?: string | null
+                    contact_email?: string | null
                     hourly_wage?: number | null
                     commuter_pass_price?: number | null
                     created_at?: string
@@ -87,6 +94,26 @@ export interface Database {
                     attendance_record_id?: string
                     start_time?: string
                     end_time?: string | null
+                    created_at?: string
+                }
+            }
+            departments: {
+                Row: {
+                    id: string
+                    name: string
+                    code: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    code: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    code?: string
                     created_at?: string
                 }
             }

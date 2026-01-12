@@ -10,9 +10,9 @@ export default function LoginPage() {
 
                 <div className="relative z-10">
                     <h1 className="text-3xl font-bold text-center mb-2 bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                        Timecard App
+                        勤怠管理アプリ
                     </h1>
-                    <p className="text-gray-400 text-center mb-8">Sign in to your account</p>
+                    <p className="text-gray-400 text-center mb-8">アカウントにログイン</p>
 
                     <LoginForm />
                 </div>

@@ -1,25 +1,121 @@
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
+import { createClient } from '@/utils/supabase/server'
+import Header from '@/components/header'
+import { redirect } from 'next/navigation'
+import { getTodayAttendance } from '@/features/attendance/actions'
+import { MainActionButtons, BreakActionButtons } from '@/components/attendance-actions'
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/login')
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const role = profile?.role || 'employee'
+
+  if (role === 'admin') {
+    redirect('/admin')
+  }
+
+  const attendance = await getTodayAttendance()
+
+  // Determine current state
+  const isClockedIn = !!attendance?.clock_in
+  const isClockedOut = !!attendance?.clock_out
+  const activeBreak = attendance?.break_records?.find((b: any) => !b.end_time)
+  const isOnBreak = !!activeBreak
+
+  // Status Color and Text
+  let statusText = '未出勤'
+  let statusColor = 'text-gray-400'
+  if (isClockedOut) {
+    statusText = '退勤済み'
+    statusColor = 'text-red-400'
+  } else if (isOnBreak) {
+    statusText = '休憩中'
+    statusColor = 'text-yellow-400'
+  } else if (isClockedIn) {
+    statusText = '勤務中'
+    statusColor = 'text-emerald-400'
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Timecard App
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <Link href="/login">
-            <Button>ログイン画面へ</Button>
-          </Link>
+    <main className="min-h-screen bg-black">
+      <Header user={user} role={role} />
+
+      <div className="container mx-auto p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="glass-panel p-8 mb-8">
+            <h2 className="text-2xl font-bold text-white mb-6">本日の勤怠</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Status Section */}
+              <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-800 flex flex-col items-center justify-center gap-4">
+                <span className="text-gray-400">現在の状況</span>
+                <span className={`text-3xl font-bold ${statusColor}`}>{statusText}</span>
+
+                <MainActionButtons
+                  attendance={attendance}
+                  isClockedIn={isClockedIn}
+                  isClockedOut={isClockedOut}
+                  isOnBreak={isOnBreak}
+                />
+              </div>
+
+              {/* Controls Section */}
+              <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-800 flex flex-col items-center justify-center gap-4">
+                <span className="text-gray-400">休憩操作</span>
+
+                <BreakActionButtons
+                  attendance={attendance}
+                  isClockedIn={isClockedIn}
+                  isClockedOut={isClockedOut}
+                  isOnBreak={isOnBreak}
+                  activeBreakId={activeBreak?.id}
+                />
+
+                {attendance?.clock_in && (
+                  <div className="mt-4 text-sm text-gray-400">
+                    出勤時間: {new Date(attendance.clock_in).toLocaleTimeString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-panel p-8">
+            <h2 className="text-xl font-bold text-white mb-4">休憩履歴</h2>
+            {attendance?.break_records && attendance.break_records.length > 0 ? (
+              <div className="space-y-2">
+                {attendance.break_records.map((br: any) => (
+                  <div key={br.id} className="flex justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-800">
+                    <span>休憩</span>
+                    <div className="space-x-4 text-gray-400">
+                      <span>{new Date(br.start_time).toLocaleTimeString()}</span>
+                      <span>-</span>
+                      <span>{br.end_time ? new Date(br.end_time).toLocaleTimeString() : '継続中'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-400 text-center py-8">
+                本日の休憩はありません
+              </div>
+            )}
+
+          </div>
         </div>
-      </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-to-br before:from-transparent before:to-blue-700 before:opacity-10 before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-to-t after:from-sky-900 after:via-[#0141ff] after:opacity-40 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 z-[-1]">
-        <h1 className="text-4xl font-bold">Welcome to Timecard App</h1>
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
       </div>
     </main>
   )
