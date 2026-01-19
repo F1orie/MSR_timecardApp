@@ -1,5 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { startOfMonth, endOfMonth, format } from 'date-fns'
+import AttendanceDashboard from '@/components/admin/AttendanceDashboard'
 
 export default async function AdminAttendancePage({
     searchParams,
@@ -16,8 +18,14 @@ export default async function AdminAttendancePage({
         redirect('/login')
     }
 
+    const resolvedParams = await searchParams
+    const currentMonth = typeof resolvedParams.month === 'string' ? resolvedParams.month : format(new Date(), 'yyyy-MM')
+
+    // Calculate date range for the query
+    const startDate = startOfMonth(new Date(currentMonth + '-01')).toISOString()
+    const endDate = endOfMonth(new Date(currentMonth + '-01')).toISOString()
+
     // Build Query
-    // RLS policies ensure Admins only see records from their department
     const query = supabase
         .from('attendance_records')
         .select(`
@@ -26,12 +34,19 @@ export default async function AdminAttendancePage({
                 full_name,
                 username,
                 department_id,
+                hourly_wage,
                 departments (
                     name,
                     code
                 )
+            ),
+            break_records (
+                start_time,
+                end_time
             )
         `)
+        .gte('date', startDate)
+        .lte('date', endDate)
         .order('date', { ascending: false })
 
     const { data: attendanceData } = await query
@@ -42,58 +57,10 @@ export default async function AdminAttendancePage({
                 <h1 className="text-3xl font-bold text-white">勤怠履歴</h1>
             </div>
 
-            {/* Filter Section */}
-            {/* Filter Section Removed */}
-
-            <div className="glass-panel p-6 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="border-b border-gray-700 text-gray-400">
-                                <th className="p-4">日付</th>
-                                <th className="p-4">従業員</th>
-                                <th className="p-4">部署</th>
-                                <th className="p-4">出勤</th>
-                                <th className="p-4">退勤</th>
-                                <th className="p-4">交通費</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {(attendanceData || []).map((record: any) => (
-                                <tr key={record.id} className="text-gray-300 hover:bg-white/5">
-                                    <td className="p-4">{new Date(record.date).toLocaleDateString()}</td>
-                                    <td className="p-4 text-white">
-                                        <div className="font-medium">{record.profiles?.full_name}</div>
-                                        <div className="text-xs text-gray-500">{record.profiles?.username}</div>
-                                    </td>
-                                    <td className="p-4">
-                                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                            {record.profiles?.departments?.name || 'N/A'}
-                                        </span>
-                                    </td>
-                                    <td className="p-4">
-                                        {record.clock_in ? new Date(record.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
-                                    </td>
-                                    <td className="p-4">
-                                        {record.clock_out ? new Date(record.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="text-sm">{record.transport_route || '-'}</div>
-                                        {record.transport_cost ? <div className="text-xs text-emerald-400">¥{record.transport_cost}</div> : null}
-                                    </td>
-                                </tr>
-                            ))}
-                            {(!attendanceData || attendanceData.length === 0) && (
-                                <tr>
-                                    <td colSpan={6} className="p-8 text-center text-gray-500">
-                                        勤怠データがありません。
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <AttendanceDashboard
+                initialRecords={attendanceData || []}
+                currentMonth={currentMonth}
+            />
         </div>
     )
 }

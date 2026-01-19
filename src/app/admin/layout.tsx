@@ -58,6 +58,9 @@ export default async function AdminLayout({
                     <a href="/admin/attendance" className="block px-4 py-2 rounded-lg text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
                         勤怠管理
                     </a>
+                    <a href="/admin/transportation" className="block px-4 py-2 rounded-lg text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
+                        交通費管理
+                    </a>
                 </nav>
 
                 <div className="p-4 border-t border-white/10">

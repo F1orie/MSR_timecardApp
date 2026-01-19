@@ -50,14 +50,41 @@ export async function getAdminData() {
     // Cast the Result to include the joined breakdown_records properly because Supabase types can be tricky with joins
     const attendanceRecords = rawAttendanceRecords as unknown as AttendanceRecord[]
 
+    // Fetch this month's transportation records
+    // We must fetch from the NEW table as well
+    const { data: rawTransportRecords } = await supabase
+        .from('transportation_records')
+        .select(`
+            amount,
+            attendance_records!inner (
+                user_id,
+                date
+            )
+        `)
+        .gte('attendance_records.date', startOfMonth.toISOString())
+
     // Calculate stats per employee
     const attendanceStats: Record<string, { totalHours: number, totalTransport: number, estimatedWage: number }> = {}
 
     employees.forEach((emp: Profile) => {
         const empRecords = attendanceRecords?.filter(r => r.user_id === emp.id) || []
 
+        // Sum from new transport table
+        // We know the structure is different after select:
+        // rawTransportRecords is array of { amount: number, attendance_records: { user_id: string } }
+        // BUT Typescript might complain if not cast.
+        // Let's filter manually.
+        const empTransportRecords = rawTransportRecords?.filter((tr: any) => tr.attendance_records.user_id === emp.id) || []
+        const newTransportTotal = empTransportRecords.reduce((sum: number, tr: any) => sum + tr.amount, 0)
+
+        // Sum from legacy (if any remaining logic uses it, but we moved to new table for inputs)
+        // User requested: "勤怠管理での交通費はその月の合計" (Attendance management > transport is month total)
+        // The previous logic used `record.transport_cost`. This column might be used by old records.
+        // Let's SUM both for safety, or prefer new.
+        // Assuming we want to show the TOTAL of all transportation costs.
+
         let totalMinutes = 0
-        let totalTransport = 0
+        let legacyTransport = 0
 
         empRecords.forEach(record => {
             if (record.clock_in && record.clock_out) {
@@ -76,11 +103,12 @@ export async function getAdminData() {
 
                 if (duration > 0) totalMinutes += duration
             }
-            totalTransport += record.transport_cost || 0
+            legacyTransport += record.transport_cost || 0
         })
 
+        const totalTransport = legacyTransport + newTransportTotal
+
         const hourlyWage = emp.hourly_wage || 1000
-        // totalHours is used in the returned object, so keep it.
         const totalHours = parseFloat((totalMinutes / 60).toFixed(1))
 
         const estimatedWage = Math.floor((totalMinutes / 60) * hourlyWage)

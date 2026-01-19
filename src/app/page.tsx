@@ -2,7 +2,9 @@ import { createClient } from '@/utils/supabase/server'
 import Header from '@/components/header'
 import { redirect } from 'next/navigation'
 import { getTodayAttendance } from '@/features/attendance/actions'
+import { getTodayTransportation } from '@/features/transportation/actions'
 import { MainActionButtons, BreakActionButtons } from '@/components/attendance-actions'
+import { TransportInputForm } from '@/components/transport-input-form'
 
 export default async function Home() {
   const supabase = await createClient()
@@ -33,11 +35,12 @@ export default async function Home() {
   }
 
   const attendance = await getTodayAttendance()
+  const transportRecords = attendance ? await getTodayTransportation(attendance.id) : []
 
   // Determine current state
   const isClockedIn = !!attendance?.clock_in
   const isClockedOut = !!attendance?.clock_out
-  const activeBreak = attendance?.break_records?.find((b: any) => !b.end_time)
+  const activeBreak = attendance?.break_records?.find((b: { end_time: string | null }) => !b.end_time)
   const isOnBreak = !!activeBreak
 
   // Status Color and Text
@@ -96,30 +99,44 @@ export default async function Home() {
                 )}
               </div>
             </div>
-          </div>
 
-          <div className="glass-panel p-8">
-            <h2 className="text-xl font-bold text-white mb-4">休憩履歴</h2>
-            {attendance?.break_records && attendance.break_records.length > 0 ? (
-              <div className="space-y-2">
-                {attendance.break_records.map((br: any) => (
-                  <div key={br.id} className="flex justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-800">
-                    <span>休憩</span>
-                    <div className="space-x-4 text-gray-400">
-                      <span>{new Date(br.start_time).toLocaleTimeString()}</span>
-                      <span>-</span>
-                      <span>{br.end_time ? new Date(br.end_time).toLocaleTimeString() : '継続中'}</span>
-                    </div>
+            {/* Transportation Section */}
+            <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-800 flex flex-col items-center justify-center gap-4 md:col-span-2">
+              <div className="w-full">
+                {attendance ? (
+                  <TransportInputForm
+                    attendanceId={attendance.id}
+                    currentRecords={transportRecords}
+                  />
+                ) : (
+                  <div className="text-gray-500 text-sm text-center">出勤後に交通費を入力できます</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-panel p-8">
+          <h2 className="text-xl font-bold text-white mb-4">休憩履歴</h2>
+          {attendance?.break_records && attendance.break_records.length > 0 ? (
+            <div className="space-y-2">
+              {attendance.break_records.map((br: { id: string, start_time: string, end_time: string | null }) => (
+                <div key={br.id} className="flex justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-800">
+                  <span>休憩</span>
+                  <div className="space-x-4 text-gray-400">
+                    <span>{new Date(br.start_time).toLocaleTimeString()}</span>
+                    <span>-</span>
+                    <span>{br.end_time ? new Date(br.end_time).toLocaleTimeString() : '継続中'}</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-gray-400 text-center py-8">
-                本日の休憩はありません
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-gray-400 text-center py-8">
+              本日の休憩はありません
+            </div>
+          )}
 
-          </div>
         </div>
       </div>
     </main>

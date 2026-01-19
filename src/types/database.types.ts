@@ -117,6 +117,38 @@ export interface Database {
                     created_at?: string
                 }
             }
+            transportation_records: {
+                Row: {
+                    id: string
+                    attendance_record_id: string
+                    origin: string
+                    destination: string
+                    transport_method: string
+                    route_type: '片道' | '往復'
+                    amount: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    attendance_record_id: string
+                    origin: string
+                    destination: string
+                    transport_method: string
+                    route_type: '片道' | '往復'
+                    amount?: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    attendance_record_id?: string
+                    origin?: string
+                    destination?: string
+                    transport_method?: string
+                    route_type?: '片道' | '往復'
+                    amount?: number
+                    created_at?: string
+                }
+            }
         }
         Views: {
             [_ in never]: never
