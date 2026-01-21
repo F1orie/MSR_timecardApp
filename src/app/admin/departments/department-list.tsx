@@ -15,12 +15,12 @@ export function DepartmentList({ departments }: { departments: any[] }) {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 glass-panel p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">登録済み部署 (企業)</h3>
+                <h3 className="text-lg font-semibold text-white mb-4">登録済み所属 (企業)</h3>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
                             <tr className="border-b border-white/10 text-gray-400">
-                                <th className="p-4">部署名</th>
+                                <th className="p-4">所属名</th>
                                 <th className="p-4">所属コード</th>
                             </tr>
                         </thead>
@@ -34,7 +34,7 @@ export function DepartmentList({ departments }: { departments: any[] }) {
                             {departments.length === 0 && (
                                 <tr>
                                     <td colSpan={2} className="p-4 text-center text-gray-500">
-                                        部署が見つかりません。
+                                        所属が見つかりません。
                                     </td>
                                 </tr>
                             )}
@@ -44,7 +44,7 @@ export function DepartmentList({ departments }: { departments: any[] }) {
             </div>
 
             <div className="lg:col-span-1 glass-panel p-6 sticky top-6 h-fit">
-                <h3 className="text-lg font-semibold text-white mb-4">部署情報</h3>
+                <h3 className="text-lg font-semibold text-white mb-4">所属情報</h3>
                 <div className="text-gray-400 text-sm">
                     <p className="mb-4">
                         所属コードは企業ごとに発行されます。

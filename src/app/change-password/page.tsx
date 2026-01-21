@@ -1,15 +1,14 @@
 'use client'
 
 import { useActionState } from 'react'
-import { updatePassword } from './actions'
+import { changePassword } from './actions'
 
 const initialState = {
     error: '',
 }
 
 export default function ChangePasswordForm() {
-    // @ts-expect-error - useActionState type mismatch
-    const [state, formAction, isPending] = useActionState(updatePassword, initialState)
+    const [state, formAction, isPending] = useActionState(changePassword, initialState)
 
     return (
         <div className="min-h-screen bg-black flex items-center justify-center p-4">

@@ -28,7 +28,8 @@ export async function addTransportationRecords(records: TransportationRecordInpu
 
     const { error } = await supabase
         .from('transportation_records')
-        .insert(records)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .insert(records as any)
 
     if (error) {
         console.error('AddTransportation Error:', error)

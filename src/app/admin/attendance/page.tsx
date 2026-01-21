@@ -33,6 +33,7 @@ export default async function AdminAttendancePage({
             profiles!inner (
                 full_name,
                 username,
+                role,
                 department_id,
                 hourly_wage,
                 departments (
@@ -51,6 +52,13 @@ export default async function AdminAttendancePage({
 
     const { data: attendanceData } = await query
 
+    // Fetch Active Employees for the create modal
+    const { data: users } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .neq('role', 'admin') // Only active employees usually
+        .order('full_name')
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -60,6 +68,7 @@ export default async function AdminAttendancePage({
             <AttendanceDashboard
                 initialRecords={attendanceData || []}
                 currentMonth={currentMonth}
+                users={users || []}
             />
         </div>
     )

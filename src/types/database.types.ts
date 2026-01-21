@@ -13,7 +13,7 @@ export interface Database {
                 Row: {
                     id: string
                     full_name: string | null
-                    role: 'admin' | 'employee'
+                    role: 'admin' | 'member' | 'arbeit' | 'intern'
                     username: string | null
                     contact_email: string | null
                     department_id: string | null
@@ -24,7 +24,7 @@ export interface Database {
                 Insert: {
                     id: string
                     full_name?: string | null
-                    role?: 'admin' | 'employee'
+                    role?: 'admin' | 'member' | 'arbeit' | 'intern'
                     username?: string | null
                     contact_email?: string | null
                     hourly_wage?: number | null
@@ -34,7 +34,7 @@ export interface Database {
                 Update: {
                     id?: string
                     full_name?: string | null
-                    role?: 'admin' | 'employee'
+                    role?: 'admin' | 'member' | 'arbeit' | 'intern'
                     username?: string | null
                     contact_email?: string | null
                     hourly_wage?: number | null
@@ -51,6 +51,7 @@ export interface Database {
                     clock_out: string | null
                     transport_route: string | null
                     transport_cost: number | null
+                    is_telework: boolean | null
                     created_at: string
                 }
                 Insert: {
@@ -61,6 +62,7 @@ export interface Database {
                     clock_out?: string | null
                     transport_route?: string | null
                     transport_cost?: number | null
+                    is_telework?: boolean | null
                     created_at?: string
                 }
                 Update: {
@@ -71,6 +73,7 @@ export interface Database {
                     clock_out?: string | null
                     transport_route?: string | null
                     transport_cost?: number | null
+                    is_telework?: boolean | null
                     created_at?: string
                 }
             }

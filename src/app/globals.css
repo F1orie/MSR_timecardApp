@@ -111,6 +111,8 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    background-color: var(--background);
+    color: var(--foreground);
+    /* @apply bg-background text-foreground; */
   }
 }

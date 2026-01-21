@@ -14,8 +14,8 @@ export async function createDepartment(prevState: any, formData: FormData) {
         return { error: 'Name and Code are required' }
     }
 
-    const { error } = await supabase
-        .from('departments')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('departments') as any)
         .insert({ name, code })
 
     if (error) {

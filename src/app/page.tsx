@@ -5,6 +5,7 @@ import { getTodayAttendance } from '@/features/attendance/actions'
 import { getTodayTransportation } from '@/features/transportation/actions'
 import { MainActionButtons, BreakActionButtons } from '@/components/attendance-actions'
 import { TransportInputForm } from '@/components/transport-input-form'
+import { RequestForm } from '@/components/request-form'
 
 export default async function Home() {
   const supabase = await createClient()
@@ -21,6 +22,8 @@ export default async function Home() {
     .from('profiles')
     .select(`
       role,
+      full_name,
+      password_reset_required,
       departments (
         name
       )
@@ -28,9 +31,16 @@ export default async function Home() {
     .eq('id', user.id)
     .single()
 
-  const role = profile?.role || 'employee'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((profile as any)?.password_reset_required) {
+    redirect('/change-password')
+  }
 
-  if (role === 'admin') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const role = (profile as any)?.role || 'employee'
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((profile as any)?.role === 'admin') {
     redirect('/admin')
   }
 
@@ -59,7 +69,13 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-black">
-      <Header user={user} role={role} departmentName={profile?.departments?.name} />
+      <Header
+        user={user}
+        role={role}
+        departmentName={(profile as any)?.departments?.name}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        userName={(profile as any)?.full_name}
+      />
 
       <div className="container mx-auto p-8">
         <div className="max-w-4xl mx-auto">
@@ -91,6 +107,12 @@ export default async function Home() {
                   isOnBreak={isOnBreak}
                   activeBreakId={activeBreak?.id}
                 />
+
+                <div className="w-full h-px bg-slate-800 my-2" />
+
+                <div className="w-full flex justify-center">
+                  <RequestForm />
+                </div>
 
                 {attendance?.clock_in && (
                   <div className="mt-4 text-sm text-gray-400">

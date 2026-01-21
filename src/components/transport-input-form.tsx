@@ -165,7 +165,7 @@ export function TransportInputForm({ attendanceId, currentRecords = [], onSucces
                                 placeholder="金額"
                                 value={row.amount}
                                 onChange={(e) => updateRow(row.id, 'amount', e.target.value)}
-                                className="bg-black/30 border border-slate-600 rounded px-2 py-1 text-white text-sm w-20 text-right"
+                                className="bg-black/30 border border-slate-600 rounded px-2 py-1 text-white text-sm w-20 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             {rows.length > 1 && (
                                 <button onClick={() => removeRow(row.id)} className="text-red-400 hover:text-red-300 p-1">

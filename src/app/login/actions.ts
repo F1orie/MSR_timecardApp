@@ -43,7 +43,8 @@ export async function login(prevState: any, formData: FormData) {
             .eq('id', data.user.id)
             .single()
 
-        if (profile?.role === 'admin') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((profile as any)?.role === 'admin') {
             revalidatePath('/admin', 'layout')
             redirect('/admin')
         }

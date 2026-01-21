@@ -1,0 +1,8 @@
+Analyzing: D:\minastar\MSR_timecardApp\立替交通費精算書_例.xlsx
+
+--- Sheet 1: 例 ---
+Found "氏名" at Row 2, Col 4 (Address: D2) (Value: 氏名：)
+Found "合計" at Row 3, Col 1 (Address: A3) (Value: 合計：)
+Found "日付" at Row 5, Col 1 (Address: A5) (Value: 日付)
+Found "交通手段" at Row 5, Col 5 (Address: E5) (Value: 交通手段)
+Found "金額" at Row 5, Col 7 (Address: G5) (Value: 金額)

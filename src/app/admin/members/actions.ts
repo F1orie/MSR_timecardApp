@@ -10,7 +10,6 @@ export async function createMember(prevState: any, formData: FormData) {
     const supabaseAdmin = createAdminClient()
 
     const fullName = formData.get('fullName') as string
-    const username = (formData.get('username') as string).trim()
     const contactEmail = (formData.get('contactEmail') as string || '').trim() || null
     // Authenticate Admin
     const supabase = await createClient() // standard client for auth check
@@ -28,22 +27,41 @@ export async function createMember(prevState: any, formData: FormData) {
         .single()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const departmentCode = (adminProfile?.departments as any)?.code
+    const departmentCode = ((adminProfile as any)?.departments as any)?.code
 
     if (!departmentCode) {
         return { error: 'Admin department not found' }
     }
 
-    let emailForAuth: string | null = null
+    // Auto-generate Username (User ID) logic: 3 digits starting from 101
+    // Fetch existing users in this department to determine the next ID
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const deptId = (adminProfile as any).department_id
+    const { data: deptProfiles } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('department_id', deptId)
 
-    // Always prioritize Username + Dept for Auth if available
-    if (username && departmentCode) {
-        emailForAuth = generateAuthEmail(username, departmentCode)
-    } else if (contactEmail) {
-        emailForAuth = contactEmail
+    let nextId = 101
+    if (deptProfiles && deptProfiles.length > 0) {
+        // Filter and find max ID
+        const ids = deptProfiles
+            .map((p: { username: string | null }) => parseInt(p.username || '0', 10))
+            .filter((id: number) => !isNaN(id) && id >= 101) // Only consider valid 101+ IDs
+
+        if (ids.length > 0) {
+            nextId = Math.max(...ids) + 1
+        }
     }
 
-    const password = username // Initial password is the same as username
+    const username = nextId.toString()
+    // password default same as username
+    const password = username
+
+    let emailForAuth: string | null = null
+    if (departmentCode) {
+        emailForAuth = generateAuthEmail(username, departmentCode)
+    }
 
     if (!emailForAuth || !password) {
         return { error: 'Email/Username (with Dept) are required' }
@@ -67,10 +85,6 @@ export async function createMember(prevState: any, formData: FormData) {
         console.error('Error creating user:', authError)
         return { error: authError.message }
     }
-
-    // 2. Profile is automatically created by Trigger (supabase_schema.sql)
-    // However, we might want to ensure properties are set correctly or handle custom data logic here if needed.
-    // The trigger sets role='employee' by default.
 
     revalidatePath('/admin/members')
     return { success: true }

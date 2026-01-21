@@ -9,7 +9,7 @@ type AttendanceRecord = Database['public']['Tables']['attendance_records']['Row'
     break_records: Database['public']['Tables']['break_records']['Row'][]
 }
 
-export async function getAdminData() {
+export async function getAdminData(year?: number, month?: number) {
     const supabase = await createClient()
 
     // Check auth and role
@@ -22,7 +22,8 @@ export async function getAdminData() {
         .eq('id', user.id)
         .single()
 
-    if (profile?.role !== 'admin') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((profile as any)?.role !== 'admin') {
         redirect('/')
     }
 
@@ -34,10 +35,27 @@ export async function getAdminData() {
 
     if (!employees) return { employees: [], attendanceStats: {} }
 
-    // Fetch this month's attendance for all users
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    startOfMonth.setHours(0, 0, 0, 0)
+    // Date range calculation
+    const now = new Date()
+    const targetYear = year || now.getFullYear()
+    const targetMonth = month || (now.getMonth() + 1) // 1-indexed
+
+    const startOfMonth = new Date(targetYear, targetMonth - 1, 1) // 0-indexed month for Date constructor
+    // End of month: First day of next month
+    const endOfMonth = new Date(targetYear, targetMonth, 1)
+
+    // Convert to ISO string for DB comparison (start is inclusive, end is exclusive)
+    // Note: To match "entire day" correctly in TZ, usually best to use simply day ranges,
+    // but here we just iterate 00:00:00 to next month 00:00:00
+    // timezone offset might be an issue, but let's assume server time / UTC consistent for now or simple dates.
+    // Ideally we store dates as 'YYYY-MM-DD' which filters easily.
+
+    // Using formatted strings for 'date' column comparison if it's type date
+    const startStr = startOfMonth.toISOString().split('T')[0]
+
+    // For end date comparison, since 'date' column is just DATE type, 
+    // we want < first day of next month.
+    const endStr = endOfMonth.toISOString().split('T')[0]
 
     const { data: rawAttendanceRecords } = await supabase
         .from('attendance_records')
@@ -45,13 +63,14 @@ export async function getAdminData() {
             *,
             break_records (*)
         `)
-        .gte('date', startOfMonth.toISOString())
+        .gte('date', startStr)
+        .lt('date', endStr)
 
-    // Cast the Result to include the joined breakdown_records properly because Supabase types can be tricky with joins
+    // Cast the Result
     const attendanceRecords = rawAttendanceRecords as unknown as AttendanceRecord[]
 
     // Fetch this month's transportation records
-    // We must fetch from the NEW table as well
+    // Assuming transportation is linked to attendance_record which has a date
     const { data: rawTransportRecords } = await supabase
         .from('transportation_records')
         .select(`
@@ -61,7 +80,9 @@ export async function getAdminData() {
                 date
             )
         `)
-        .gte('attendance_records.date', startOfMonth.toISOString())
+        .gte('attendance_records.date', startStr)
+        .lt('attendance_records.date', endStr)
+
 
     // Calculate stats per employee
     const attendanceStats: Record<string, { totalHours: number, totalTransport: number, estimatedWage: number }> = {}
@@ -69,19 +90,10 @@ export async function getAdminData() {
     employees.forEach((emp: Profile) => {
         const empRecords = attendanceRecords?.filter(r => r.user_id === emp.id) || []
 
-        // Sum from new transport table
-        // We know the structure is different after select:
-        // rawTransportRecords is array of { amount: number, attendance_records: { user_id: string } }
-        // BUT Typescript might complain if not cast.
-        // Let's filter manually.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const empTransportRecords = rawTransportRecords?.filter((tr: any) => tr.attendance_records.user_id === emp.id) || []
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const newTransportTotal = empTransportRecords.reduce((sum: number, tr: any) => sum + tr.amount, 0)
-
-        // Sum from legacy (if any remaining logic uses it, but we moved to new table for inputs)
-        // User requested: "勤怠管理での交通費はその月の合計" (Attendance management > transport is month total)
-        // The previous logic used `record.transport_cost`. This column might be used by old records.
-        // Let's SUM both for safety, or prefer new.
-        // Assuming we want to show the TOTAL of all transportation costs.
 
         let totalMinutes = 0
         let legacyTransport = 0
@@ -120,5 +132,5 @@ export async function getAdminData() {
         }
     })
 
-    return { employees: employees as Profile[], attendanceStats }
+    return { employees: employees as Profile[], attendanceStats, attendanceRecords }
 }

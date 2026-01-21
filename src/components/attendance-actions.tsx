@@ -87,11 +87,12 @@ export function AttendanceActions({ attendance, isClockedIn, isClockedOut, isOnB
 export function MainActionButtons({ attendance, isClockedIn, isClockedOut, isOnBreak }: Props) {
     const [isPending, startTransition] = useTransition()
     const [error, setError] = useState<string | null>(null)
+    const [isTelework, setIsTelework] = useState(false)
 
     const handleClockIn = () => {
         setError(null)
         startTransition(async () => {
-            const res = await clockIn()
+            const res = await clockIn(isTelework)
             if (res?.error) setError(res.error)
         })
     }
@@ -105,8 +106,24 @@ export function MainActionButtons({ attendance, isClockedIn, isClockedOut, isOnB
     }
 
     return (
-        <div className="w-full flex flex-col gap-2">
+        <div className="w-full flex flex-col gap-4">
             {error && <div className="text-red-400 text-sm mb-2">{error}</div>}
+
+            {!isClockedIn && !isClockedOut && (
+                <div className="flex items-center justify-center gap-2 mb-2 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+                    <input
+                        type="checkbox"
+                        id="telework-toggle"
+                        checked={isTelework}
+                        onChange={(e) => setIsTelework(e.target.checked)}
+                        disabled={isPending}
+                        className="w-5 h-5 text-blue-600 rounded bg-gray-700 border-gray-600 focus:ring-blue-500 ring-offset-gray-800"
+                    />
+                    <label htmlFor="telework-toggle" className="text-white font-medium cursor-pointer select-none">
+                        テレワーク勤務
+                    </label>
+                </div>
+            )}
 
             {!isClockedIn && !isClockedOut && (
                 <button onClick={handleClockIn} disabled={isPending} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-6 rounded-lg transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] disabled:opacity-50">

@@ -54,7 +54,7 @@ export default function AddMemberForm() {
                 <p className="text-xs text-red-400">{state.error}</p>
             )}
             {state?.success && (
-                <p className="text-xs text-green-400">従業員を登録しました！</p>
+                <p className="text-xs text-green-400">メンバーを登録しました！</p>
             )}
 
             <button

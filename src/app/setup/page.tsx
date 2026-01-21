@@ -8,7 +8,6 @@ const initialState = {
 }
 
 export default function SetupPage() {
-    // @ts-expect-error - useActionState type mismatch
     const [state, formAction, isPending] = useActionState(createInitialAdmin, initialState)
 
     return (

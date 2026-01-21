@@ -29,8 +29,8 @@ export async function createInitialAdmin(prevState: any, formData: FormData) {
     while (retries > 0) {
         companyCode = generateCompanyCode()
 
-        const { error } = await supabaseAdmin
-            .from('departments')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabaseAdmin.from('departments') as any)
             .insert({
                 name: companyName,
                 code: companyCode
@@ -54,7 +54,7 @@ export async function createInitialAdmin(prevState: any, formData: FormData) {
     }
 
     if (deptError) {
-        return { error: '部署(企業)の作成に失敗しました: ' + deptError.message }
+        return { error: '所属(企業)の作成に失敗しました: ' + deptError.message }
     }
     if (retries === 0) {
         return { error: '企業コードの生成に失敗しました。もう一度お試しください。' }
@@ -80,8 +80,8 @@ export async function createInitialAdmin(prevState: any, formData: FormData) {
     }
 
     // 2. Update Profile Role to Admin and Wage to 0
-    const { error: updateError } = await supabaseAdmin
-        .from('profiles')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updateError } = await (supabaseAdmin.from('profiles') as any)
         .update({
             role: 'admin',
             hourly_wage: 0

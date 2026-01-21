@@ -3,7 +3,25 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-export async function getTodayAttendance() {
+export type BreakRecord = {
+    id: string
+    start_time: string
+    end_time: string | null
+    attendance_record_id: string
+}
+
+export type AttendanceRecordWithBreaks = {
+    id: string
+    user_id: string
+    date: string
+    clock_in: string | null
+    clock_out: string | null
+    is_telework: boolean | null
+    break_records: BreakRecord[]
+    created_at?: string
+}
+
+export async function getTodayAttendance(): Promise<AttendanceRecordWithBreaks | null> {
     const supabase = await createClient()
     const {
         data: { user },
@@ -36,10 +54,11 @@ export async function getTodayAttendance() {
         return null
     }
 
-    return attendanceData?.[0] || null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (attendanceData?.[0] as any) as AttendanceRecordWithBreaks || null
 }
 
-export async function clockIn() {
+export async function clockIn(isTelework: boolean = false) {
     const supabase = await createClient()
     const {
         data: { user },
@@ -61,10 +80,12 @@ export async function clockIn() {
         return { error: '既に本日の出勤記録が存在します' }
     }
 
-    const { error } = await supabase.from('attendance_records').insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('attendance_records') as any).insert({
         user_id: user.id,
         date: today,
         clock_in: new Date().toISOString(),
+        is_telework: isTelework,
     })
 
     if (error) {
@@ -79,8 +100,8 @@ export async function clockIn() {
 export async function clockOut(attendanceId: string) {
     const supabase = await createClient()
 
-    const { error } = await supabase
-        .from('attendance_records')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('attendance_records') as any)
         .update({
             clock_out: new Date().toISOString(),
         })
@@ -97,7 +118,8 @@ export async function clockOut(attendanceId: string) {
 export async function startBreak(attendanceId: string) {
     const supabase = await createClient()
 
-    const { error } = await supabase.from('break_records').insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('break_records') as any).insert({
         attendance_record_id: attendanceId,
         start_time: new Date().toISOString(),
     })
@@ -113,8 +135,8 @@ export async function startBreak(attendanceId: string) {
 export async function endBreak(breakId: string) {
     const supabase = await createClient()
 
-    const { error } = await supabase
-        .from('break_records')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('break_records') as any)
         .update({
             end_time: new Date().toISOString(),
         })

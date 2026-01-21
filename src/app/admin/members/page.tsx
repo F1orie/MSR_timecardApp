@@ -21,14 +21,14 @@ export default async function MembersPage() {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold text-white">従業員管理</h1>
+                <h1 className="text-3xl font-bold text-white">メンバー管理</h1>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Member List */}
                 <div className="lg:col-span-2 space-y-4">
                     <div className="glass-panel p-6">
-                        <h3 className="text-lg font-semibold text-white mb-4">従業員一覧</h3>
+                        <h3 className="text-lg font-semibold text-white mb-4">メンバー一覧</h3>
 
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
@@ -50,9 +50,17 @@ export default async function MembersPage() {
                                             <td className="p-4">
                                                 <span className={`px-3 py-1 rounded-full text-xs ${profile.role === 'admin'
                                                     ? 'bg-purple-500/20 text-purple-300'
-                                                    : 'bg-cyan-500/20 text-cyan-300'
+                                                    : profile.role === 'member'
+                                                        ? 'bg-cyan-500/20 text-cyan-300'
+                                                        : profile.role === 'arbeit'
+                                                            ? 'bg-green-500/20 text-green-300'
+                                                            : 'bg-orange-500/20 text-orange-300'
                                                     }`}>
-                                                    {profile.role}
+                                                    {profile.role === 'admin' && '管理者'}
+                                                    {profile.role === 'member' && 'メンバー'}
+                                                    {profile.role === 'arbeit' && 'アルバイト'}
+                                                    {profile.role === 'intern' && 'インターン'}
+                                                    {!['admin', 'member', 'arbeit', 'intern'].includes(profile.role) && profile.role}
                                                 </span>
                                             </td>
                                             <td className="p-4">{new Date(profile.created_at).toLocaleDateString()}</td>
@@ -69,7 +77,7 @@ export default async function MembersPage() {
                                     {(!profiles || profiles.length === 0) && (
                                         <tr>
                                             <td colSpan={3} className="p-4 text-center text-gray-500">
-                                                従業員が見つかりません。
+                                                メンバーが見つかりません。
                                             </td>
                                         </tr>
                                     )}
@@ -82,7 +90,7 @@ export default async function MembersPage() {
                 {/* Add Member Form */}
                 <div className="lg:col-span-1">
                     <div className="glass-panel p-6 sticky top-6">
-                        <h3 className="text-lg font-semibold text-white mb-4">新規従業員登録</h3>
+                        <h3 className="text-lg font-semibold text-white mb-4">新規メンバー登録</h3>
                         <AddMemberForm />
                     </div>
                 </div>
