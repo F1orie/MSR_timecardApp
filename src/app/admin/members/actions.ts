@@ -33,28 +33,28 @@ export async function createMember(prevState: any, formData: FormData) {
         return { error: 'Admin department not found' }
     }
 
-    // Auto-generate Username (User ID) logic: 3 digits starting from 101
-    // Fetch existing users in this department to determine the next ID
+    // Check duplication within department
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deptId = (adminProfile as any).department_id
-    const { data: deptProfiles } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('department_id', deptId)
 
-    let nextId = 101
-    if (deptProfiles && deptProfiles.length > 0) {
-        // Filter and find max ID
-        const ids = deptProfiles
-            .map((p: { username: string | null }) => parseInt(p.username || '0', 10))
-            .filter((id: number) => !isNaN(id) && id >= 101) // Only consider valid 101+ IDs
-
-        if (ids.length > 0) {
-            nextId = Math.max(...ids) + 1
-        }
+    const usernameInput = (formData.get('username') as string || '').trim()
+    if (!usernameInput) {
+        return { error: 'ユーザー名 (ログインID) は必須です' }
     }
 
-    const username = nextId.toString()
+    // Check existing
+    const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('department_id', deptId)
+        .eq('username', usernameInput)
+        .single()
+
+    if (existingUser) {
+        return { error: 'このIDはすでにこの部署で使用されています。別のIDを指定してください。' }
+    }
+
+    const username = usernameInput
     // password default same as username
     const password = username
 
