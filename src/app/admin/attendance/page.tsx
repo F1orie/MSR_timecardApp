@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
-import { startOfMonth, endOfMonth, format } from 'date-fns'
+
 import AttendanceDashboard from '@/components/admin/AttendanceDashboard'
 
 export default async function AdminAttendancePage({
@@ -19,11 +19,28 @@ export default async function AdminAttendancePage({
     }
 
     const resolvedParams = await searchParams
-    const currentMonth = typeof resolvedParams.month === 'string' ? resolvedParams.month : format(new Date(), 'yyyy-MM')
 
-    // Calculate date range for the query
-    const startDate = startOfMonth(new Date(currentMonth + '-01')).toISOString()
-    const endDate = endOfMonth(new Date(currentMonth + '-01')).toISOString()
+    let currentMonth = typeof resolvedParams.month === 'string' ? resolvedParams.month : undefined
+
+    if (!currentMonth) {
+        const now = new Date()
+        // Determine fiscal month based on 11th cutoff
+        // If today is < 11th, it's previous month's cycle (e.g., Jan 5 is Dec cycle)
+        const y = now.getDate() < 11 ? (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()) : now.getFullYear()
+        const m = now.getDate() < 11 ? (now.getMonth() === 0 ? 11 : now.getMonth() - 1) : now.getMonth()
+        // m is 0-indexed in Date, so +1 for string
+        currentMonth = `${y}-${String(m + 1).padStart(2, '0')}`
+    }
+
+    // Calculate date range for the query (11th to 10th of next month)
+    const [yStr, mStr] = currentMonth.split('-')
+    const year = parseInt(yStr, 10)
+    const month = parseInt(mStr, 10)
+
+    // startDate: 11th of the currentMonth
+    const startDate = new Date(year, month - 1, 11).toISOString()
+    // endDate: 10th of the next month
+    const endDate = new Date(year, month, 10, 23, 59, 59).toISOString()
 
     // Build Query
     const query = supabase

@@ -116,7 +116,7 @@ export default async function Home() {
 
                 {attendance?.clock_in && (
                   <div className="mt-4 text-sm text-gray-400">
-                    出勤時間: {new Date(attendance.clock_in).toLocaleTimeString()}
+                    出勤時間: {new Date(attendance.clock_in).toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo' })}
                   </div>
                 )}
               </div>

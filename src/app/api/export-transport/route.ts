@@ -97,11 +97,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Records start at Row 6
+    let lastRow = 5
     if (records && records.length > 0) {
-        // Insert rows if needed or just overwrite?
-        // Let's assume there are empty rows or we stick to existing lines.
-        // For dynamic lists, standard practice is to insert rows or just fill up to X.
-        // Let's iterate.
         let currentRow = 6
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -124,9 +121,18 @@ export async function GET(request: NextRequest) {
             // Col G: Amount
             sheet.getCell(`G${currentRow}`).value = rec.amount
 
+            lastRow = currentRow
             currentRow++
         })
     }
+
+    // Update Total Formula in B3 (Sum of Column G)
+    // The template has it at B3. Formula: SUM(G6:G28)
+    // We update it to SUM(G6:G<lastRow>)
+    // If no records, lastRow is 5, so SUM(G6:G5) which is valid (0) or empty.
+    // Ensure we start at least at 6 for range if lastRow < 6 (empty)
+    const endRow = Math.max(lastRow, 6)
+    sheet.getCell('B3').value = { formula: `SUM(G6:G${endRow})` }
 
     // 6. Generate Buffer
     const buffer = await workbook.xlsx.writeBuffer()

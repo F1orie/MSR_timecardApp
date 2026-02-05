@@ -23,17 +23,23 @@ export async function getMonthlyTransportStats(): Promise<EmployeeTransportStats
 
     if (!employees) return []
 
-    // Get current month range
+    // Get current month range (Fiscal month based on 11th-10th cycle)
     const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+    // If today is before 11th, we are in the previous fiscal cycle (e.g., Jan 5 is in Dec 11 - Jan 10)
+    // If today is 11th or after, we are in the current fiscal cycle (e.g., Jan 15 is in Jan 11 - Feb 10)
+    const currentFiscalYear = now.getDate() < 11 ? (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()) : now.getFullYear()
+    const currentFiscalMonth = now.getDate() < 11 ? (now.getMonth() === 0 ? 11 : now.getMonth() - 1) : now.getMonth()
+
+    const startPeriod = new Date(currentFiscalYear, currentFiscalMonth, 11)
+    const endPeriod = new Date(currentFiscalYear, currentFiscalMonth + 1, 10, 23, 59, 59)
+
+    const startIso = startPeriod.toISOString()
+    const endIso = endPeriod.toISOString()
 
     // Get stats for each employee
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stats = await Promise.all(employees.map(async (emp: any) => {
-        console.log(`Fetching transport for emp: ${emp.id}`)
-
-        const { data: transports, error } = await supabase
+        const { data: transports } = await supabase
             .from('transportation_records')
             .select(`
                 amount,
@@ -43,14 +49,8 @@ export async function getMonthlyTransportStats(): Promise<EmployeeTransportStats
                 )
             `)
             .eq('attendance_records.user_id', emp.id)
-            .gte('attendance_records.date', startOfMonth)
-            .lte('attendance_records.date', endOfMonth)
-
-        if (error) {
-            console.error('Error fetching transport stats:', error)
-        } else {
-            console.log(`Found ${transports?.length} records for ${emp.id}`)
-        }
+            .gte('attendance_records.date', startIso)
+            .lte('attendance_records.date', endIso)
 
         const totalAmount = transports?.reduce((sum: number, r: { amount: number }) => sum + r.amount, 0) || 0
 
@@ -70,11 +70,31 @@ export async function getMonthlyTransportStats(): Promise<EmployeeTransportStats
 export async function getEmployeeTransportDetails(userId: string, monthStr?: string) {
     const supabase = await createClient()
 
-    const targetDate = monthStr ? new Date(monthStr) : new Date()
-    const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1).toISOString().split('T')[0]
-    const endOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).toISOString().split('T')[0]
+    let startPeriod: Date
+    let endPeriod: Date
 
-    console.log(`Fetching details for user: ${userId}, range: ${startOfMonth} to ${endOfMonth}`)
+    if (monthStr) {
+        // monthStr is typically YYYY-MM
+        // Aligning with the requirement: "1月11日～2月10日"
+        const [y, m] = monthStr.split('-').map(Number)
+        // Note: m is 1-indexed here from the split string '2024-01' -> 1
+        // new Date constructor takes 0-indexed month for the second argument.
+        // So (y, m-1, 11) is 11th of that month.
+        startPeriod = new Date(y, m - 1, 11)
+        endPeriod = new Date(y, m, 10) // m is (m-1) + 1, so next month
+    } else {
+        const now = new Date()
+        const currentFiscalYear = now.getDate() < 11 ? (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()) : now.getFullYear()
+        const currentFiscalMonth = now.getDate() < 11 ? (now.getMonth() === 0 ? 11 : now.getMonth() - 1) : now.getMonth()
+
+        startPeriod = new Date(currentFiscalYear, currentFiscalMonth, 11)
+        endPeriod = new Date(currentFiscalYear, currentFiscalMonth + 1, 10)
+    }
+
+    const startIso = startPeriod.toISOString().split('T')[0]
+    const endIso = endPeriod.toISOString().split('T')[0]
+
+    console.log(`Fetching details for user: ${userId}, range: ${startIso} to ${endIso}`)
 
     const { data: records, error } = await supabase
         .from('transportation_records')
@@ -85,15 +105,13 @@ export async function getEmployeeTransportDetails(userId: string, monthStr?: str
             )
         `)
         .eq('attendance_records.user_id', userId)
-        .gte('attendance_records.date', startOfMonth)
-        .lte('attendance_records.date', endOfMonth)
+        .gte('attendance_records.date', startIso)
+        .lte('attendance_records.date', endIso)
         .order('attendance_records(date)', { ascending: true })
         .order('created_at', { ascending: true })
 
     if (error) {
         console.error('Error fetching details:', error)
-    } else {
-        console.log(`Found ${records?.length} detail records`)
     }
 
     // Also get user profile

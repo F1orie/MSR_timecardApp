@@ -54,6 +54,8 @@ export default function AttendanceDashboard({ initialRecords, currentMonth, user
 
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+    const [sortConfig, setSortConfig] = useState<{ key: 'date' | 'person', direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' })
 
     // Modal state
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -68,13 +70,32 @@ export default function AttendanceDashboard({ initialRecords, currentMonth, user
     // and by selectedDate if set
     const filteredRecords = useMemo(() => {
         let records = initialRecords
+
+        // Filter by Date
         if (selectedDate) {
             records = records.filter(r => isSameDay(parseISO(r.date), selectedDate))
         }
-        return records
-    }, [initialRecords, selectedDate])
 
+        // Filter by User
+        if (selectedUserId) {
+            records = records.filter(r => r.user_id === selectedUserId)
+        }
 
+        // Sort
+        return [...records].sort((a, b) => {
+            if (sortConfig.key === 'date') {
+                const dateA = new Date(a.date).getTime()
+                const dateB = new Date(b.date).getTime()
+                return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA
+            } else {
+                const nameA = a.profiles?.full_name || ''
+                const nameB = b.profiles?.full_name || ''
+                return sortConfig.direction === 'asc'
+                    ? nameA.localeCompare(nameB, 'ja')
+                    : nameB.localeCompare(nameA, 'ja')
+            }
+        })
+    }, [initialRecords, selectedDate, selectedUserId, sortConfig])
 
     // Handlers
     const handleMonthChange = (offset: number) => {
@@ -87,7 +108,17 @@ export default function AttendanceDashboard({ initialRecords, currentMonth, user
         setSelectedDate(undefined) // Reset selection on month change
     }
 
-    const resetFilter = () => setSelectedDate(undefined)
+    const resetFilter = () => {
+        setSelectedDate(undefined)
+        setSelectedUserId(null)
+    }
+
+    const handleSort = (key: 'date' | 'person') => {
+        setSortConfig(current => ({
+            key,
+            direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+        }))
+    }
 
     const handleEdit = (record: AttendanceRecord) => {
         setSelectedRecord(record)
@@ -118,9 +149,14 @@ export default function AttendanceDashboard({ initialRecords, currentMonth, user
                     <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
                         <ChevronLeft className="w-5 h-5 text-gray-400" />
                     </button>
-                    <h2 className="text-xl font-bold font-mono tracking-wider text-white">
-                        {format(monthDate, 'yyyy年 MM月', { locale: ja })}
-                    </h2>
+                    <div className="flex flex-col items-center">
+                        <h2 className="text-xl font-bold font-mono tracking-wider text-white">
+                            {format(monthDate, 'yyyy年 MM月', { locale: ja })}
+                        </h2>
+                        <span className="text-xs text-gray-400">
+                            {format(monthDate, 'MM/11')} ～ {format(addMonths(monthDate, 1), 'MM/10')}
+                        </span>
+                    </div>
                     <button onClick={() => handleMonthChange(1)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
                         <ChevronRight className="w-5 h-5 text-gray-400" />
                     </button>
@@ -172,7 +208,7 @@ export default function AttendanceDashboard({ initialRecords, currentMonth, user
                                     // Better to force month to match URL.
                                 }}
                                 disableNavigation // Disable built-in nav to enforce URL control
-                                showOutsideDays={false}
+                                showOutsideDays={true}
                                 modifiers={modifiers}
                                 modifiersStyles={modifiersStyles}
                                 styles={{
@@ -190,10 +226,14 @@ export default function AttendanceDashboard({ initialRecords, currentMonth, user
                 {/* RECORD LIST */}
                 <div className="flex-1 glass-panel p-6 overflow-hidden min-h-[400px]">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-white">
-                            {selectedDate ? format(selectedDate, 'yyyy年MM月dd日', { locale: ja }) + 'の勤怠' : '勤怠履歴一覧'}
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                            {selectedDate
+                                ? format(selectedDate, 'yyyy年MM月dd日', { locale: ja }) + 'の勤怠'
+                                : selectedUserId
+                                    ? `${users.find(u => u.id === selectedUserId)?.full_name || '選択中ユーザー'} の勤怠履歴`
+                                    : '勤怠履歴一覧'}
                         </h3>
-                        {selectedDate && (
+                        {(selectedDate || selectedUserId) && (
                             <button onClick={resetFilter} className="text-xs text-blue-400 hover:text-blue-300">
                                 絞り込み解除
                             </button>
@@ -204,8 +244,28 @@ export default function AttendanceDashboard({ initialRecords, currentMonth, user
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="border-b border-gray-700 text-gray-400">
-                                    <th className="p-4 whitespace-nowrap">日付</th>
-                                    <th className="p-4 whitespace-nowrap">メンバー</th>
+                                    <th
+                                        className="p-4 whitespace-nowrap cursor-pointer hover:text-white transition-colors group"
+                                        onClick={() => handleSort('date')}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            日付
+                                            <span className={`text-[10px] transition-opacity ${sortConfig.key === 'date' ? 'opacity-100' : 'opacity-30 group-hover:opacity-100'}`}>
+                                                {sortConfig.key === 'date' && sortConfig.direction === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        </div>
+                                    </th>
+                                    <th
+                                        className="p-4 whitespace-nowrap cursor-pointer hover:text-white transition-colors group"
+                                        onClick={() => handleSort('person')}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            メンバー
+                                            <span className={`text-[10px] transition-opacity ${sortConfig.key === 'person' ? 'opacity-100' : 'opacity-30 group-hover:opacity-100'}`}>
+                                                {sortConfig.key === 'person' && sortConfig.direction === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        </div>
+                                    </th>
                                     <th className="p-4 whitespace-nowrap">実働時間</th>
                                     <th className="p-4 whitespace-nowrap">出勤</th>
                                     <th className="p-4 whitespace-nowrap">退勤</th>
@@ -222,7 +282,12 @@ export default function AttendanceDashboard({ initialRecords, currentMonth, user
                                             <tr key={record.id} className="text-gray-300 hover:bg-white/5 transition-colors">
                                                 <td className="p-4 whitespace-nowrap">{format(parseISO(record.date), 'MM/dd')}</td>
                                                 <td className="p-4">
-                                                    <div className="font-medium text-white">{record.profiles?.full_name}</div>
+                                                    <div
+                                                        className="font-medium text-white cursor-pointer hover:text-blue-400 underline decoration-dotted underline-offset-4"
+                                                        onClick={() => setSelectedUserId(record.user_id)}
+                                                    >
+                                                        {record.profiles?.full_name}
+                                                    </div>
                                                     <div className="text-xs text-gray-500">{record.profiles?.departments?.name}</div>
                                                 </td>
                                                 <td className="p-4 font-mono text-white font-bold">
