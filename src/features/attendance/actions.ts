@@ -149,3 +149,51 @@ export async function endBreak(breakId: string) {
     revalidatePath('/')
     return { success: true }
 }
+
+export async function getWorkerMonthlyAttendance() {
+    const supabase = await createClient()
+    const {
+        data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) return []
+
+    // Calculate current fiscal month range (11th - 10th)
+    const now = new Date()
+    let startYear = now.getFullYear()
+    let startMonth = now.getMonth() // 0-indexed
+
+    if (now.getDate() < 11) {
+        // Move back one month
+        startMonth--
+        if (startMonth < 0) {
+            startMonth = 11
+            startYear--
+        }
+    }
+
+    const startDate = new Date(startYear, startMonth, 11)
+    const endDate = new Date(startYear, startMonth + 1, 10, 23, 59, 59)
+
+    const startIso = startDate.toISOString()
+    const endIso = endDate.toISOString()
+
+    const { data: records, error } = await supabase
+        .from('attendance_records')
+        .select(`
+            *,
+            break_records (*)
+        `)
+        .eq('user_id', user.id)
+        .gte('date', startIso)
+        .lte('date', endIso)
+        .order('date', { ascending: false })
+
+    if (error) {
+        console.error('getWorkerMonthlyAttendance Error:', error)
+        return []
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (records as any[]) as AttendanceRecordWithBreaks[]
+}

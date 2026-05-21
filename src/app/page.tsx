@@ -1,11 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import Header from '@/components/header'
 import { redirect } from 'next/navigation'
-import { getTodayAttendance } from '@/features/attendance/actions'
+import { getTodayAttendance, getWorkerMonthlyAttendance } from '@/features/attendance/actions'
 import { getTodayTransportation } from '@/features/transportation/actions'
 import { MainActionButtons, BreakActionButtons } from '@/components/attendance-actions'
 import { TransportInputForm } from '@/components/transport-input-form'
 import { RequestForm } from '@/components/request-form'
+import { calculateBreakDurationMinutes, formatDuration } from '@/utils/calculations'
 
 export default async function Home() {
   const supabase = await createClient()
@@ -45,6 +46,7 @@ export default async function Home() {
   }
 
   const attendance = await getTodayAttendance()
+  const monthlyAttendance = await getWorkerMonthlyAttendance()
   const transportRecords = attendance ? await getTodayTransportation(attendance.id) : []
 
   // Determine current state
@@ -159,6 +161,45 @@ export default async function Home() {
             </div>
           )}
 
+        </div>
+
+
+        {/* Worker Attendance History */}
+        <div className="glass-panel p-8 mt-8">
+          <h2 className="text-xl font-bold text-white mb-4">今月の勤怠履歴 (11日～10日)</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-gray-300">
+              <thead className="text-gray-400 border-b border-gray-700">
+                <tr>
+                  <th className="p-4">日付</th>
+                  <th className="p-4">出勤</th>
+                  <th className="p-4">退勤</th>
+                  <th className="p-4">休憩時間</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {monthlyAttendance && monthlyAttendance.length > 0 ? (
+                  monthlyAttendance.map((record) => {
+                    const breakMinutes = calculateBreakDurationMinutes(record.break_records || [])
+                    return (
+                      <tr key={record.id} className="hover:bg-white/5 transition-colors">
+                        <td className="p-4">{new Date(record.date).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit', weekday: 'short' })}</td>
+                        <td className="p-4">{record.clock_in ? new Date(record.clock_in).toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                        <td className="p-4">{record.clock_out ? new Date(record.clock_out).toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                        <td className="p-4">{breakMinutes > 0 ? formatDuration(breakMinutes) : '-'}</td>
+                      </tr>
+                    )
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-gray-500">
+                      履歴はありません
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </main>

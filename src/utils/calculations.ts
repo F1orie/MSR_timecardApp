@@ -6,6 +6,7 @@ export interface BreakRecord {
 }
 
 export interface AttendanceRecord {
+    id?: string
     user_id?: string
     date?: string // YYYY-MM-DD
     clock_in: string | null

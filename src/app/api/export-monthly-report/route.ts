@@ -4,21 +4,37 @@ import ExcelJS from 'exceljs'
 import path from 'path'
 import { promises as fs } from 'fs'
 import { calculateDailyStats, AttendanceRecord } from '@/utils/calculations'
+import JSZip from 'jszip'
 
 interface EmployeeProfile {
     id: string
     username: string | null
     full_name: string | null
     role: string | null
+    hourly_wage: number | null
 }
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const year = searchParams.get('year') // YYYY
     const month = searchParams.get('month') // MM
 
     if (!year || !month) {
         return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
+    }
+
+    let userIds: string[] = []
+    try {
+        const body = await request.json()
+        if (Array.isArray(body.userIds)) {
+            userIds = body.userIds
+        }
+    } catch (e) {
+        // ignore
+    }
+
+    if (userIds.length === 0) {
+        return NextResponse.json({ error: 'No users selected' }, { status: 400 })
     }
 
     const supabase = await createClient()
@@ -38,185 +54,258 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // 2. Fetch All Non-Admin Users
+    // 2. Fetch Selected Users
     const { data: employees } = await supabase
         .from('profiles')
         .select('*')
-        .neq('role', 'admin') // Exclude admins as requested
-        .order('username', { ascending: true }) // Order by ID?
+        .in('id', userIds)
 
     if (!employees || employees.length === 0) {
-        return NextResponse.json({ error: 'No employees found' }, { status: 404 })
+        return NextResponse.json({ error: 'No valid employees found' }, { status: 404 })
     }
 
-    // 3. Fetch Records for the month
+    // 3. Date Range (11th of prev month to 10th of current month)
     const targetYear = parseInt(year)
     const targetMonth = parseInt(month)
-    const startOfMonth = new Date(targetYear, targetMonth - 1, 1)
-    const endOfMonth = new Date(targetYear, targetMonth, 1) // First day of next month
 
-    const startStr = startOfMonth.toISOString().split('T')[0]
-    const endStr = endOfMonth.toISOString().split('T')[0]
+    const prevMonthDate = new Date(targetYear, targetMonth - 2, 11)
+    const currentMonthDate = new Date(targetYear, targetMonth - 1, 10)
 
+    const startStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-11`
+    const endStr = `${currentMonthDate.getFullYear()}-${String(currentMonthDate.getMonth() + 1).padStart(2, '0')}-10`
+
+    // Fetch Attendance Records
     const { data: rawRecords } = await supabase
         .from('attendance_records')
         .select(`
             *,
             break_records (*)
         `)
+        .in('user_id', userIds)
         .gte('date', startStr)
-        .lt('date', endStr)
+        .lte('date', endStr)
+        .order('date', { ascending: true })
 
     const allRecords = (rawRecords || []) as unknown as AttendanceRecord[]
 
+    // Fetch Transportation Records linked to these attendance records
+    const attendanceIds = allRecords.map(r => r.id).filter(Boolean)
+    let allTransport: any[] = []
+    if (attendanceIds.length > 0) {
+        const { data: transportRecords } = await supabase
+            .from('transportation_records')
+            .select('*')
+            .in('attendance_record_id', attendanceIds)
+        allTransport = transportRecords || []
+    }
+
     // 4. Load Excel Template
-    const templatePath = path.join(process.cwd(), 'sample', '30XXXX_25年12月.xlsx') // Use the sample as template
-    // Verify file exists
+    const templatePath = path.join(process.cwd(), 'sample', '勤怠表_サンプル.xlsx')
+    let templateBuffer: Buffer
     try {
-        await fs.access(templatePath)
+        templateBuffer = await fs.readFile(templatePath)
     } catch {
         return NextResponse.json({ error: 'Template not found' }, { status: 500 })
     }
 
-    const templateBuffer = await fs.readFile(templatePath)
-    const workbook = new ExcelJS.Workbook()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await workbook.xlsx.load(templateBuffer as any)
+    const zip = new JSZip()
+    const generatedFiles: { name: string, buffer: Buffer }[] = []
 
-    const sheet = workbook.getWorksheet(1)
-    if (!sheet) return NextResponse.json({ error: 'Invalid sheet' }, { status: 500 })
+    for (const emp of (employees as unknown as EmployeeProfile[])) {
+        const workbook = new ExcelJS.Workbook()
+        await workbook.xlsx.load(templateBuffer as any)
+        const sheet = workbook.getWorksheet(1)
+        if (!sheet) continue
 
-    // 5. Aggregate and Fill Data
-    // Clear existing data from row 2 downwards (User said Row 1 is header, Row 2 onwards is data)
-    // Actually the sample might have data. Let's start filling from Row 2.
-    // If there were existing rows, we overwrite.
+        const empRecords = allRecords.filter(r => r.user_id === emp.id)
 
-    let currentRow = 2
-
-    // Helper to format hours (minutes -> H.HH or H:MM?) 
-    // Usually reports like H:MM or decimal hours. 
-    // Let's assume decimal 1.5h or "1:30". 
-    // Calculations.ts formatDuration returns "H:MM". Let's use that string.
-    // Or if Excel expects number, we do decimal. 
-    // Looking at the sample file headers "時間" usually implies hours.
-    // Let's stick to "H:MM" string for now as it's safe for display.
-
-    const fmt = (mins: number) => {
-        const h = Math.floor(mins / 60)
-        const m = mins % 60
-        return `${h}:${String(m).padStart(2, '0')}`
-    }
-
-    (employees as unknown as EmployeeProfile[]).forEach(emp => {
-        const userRecords = allRecords.filter(r => r.user_id === emp.id)
-
-        const stats = {
-            workDays: 0,
-            weekdayDays: 0,
-            satDays: 0,
-            sunDays: 0,
-            workMinutes: 0,
-            weekdayMinutes: 0,
-            satMinutes: 0,
-            sunMinutes: 0,
-            lateNightMinutes: 0,
-            teleworkCount: 0
+        // Generate Dates array for the period
+        const dateList: Date[] = []
+        const curr = new Date(prevMonthDate)
+        while (curr <= currentMonthDate) {
+            dateList.push(new Date(curr))
+            curr.setDate(curr.getDate() + 1)
         }
 
-        userRecords.forEach(rec => {
-            const daily = calculateDailyStats(rec)
-            if (daily.workMinutes > 0) {
-                stats.workDays++
-                if (daily.saturdayMinutes > 0) stats.satDays++
-                else if (daily.sundayMinutes > 0) stats.sunDays++
-                else stats.weekdayDays++
+        const daysCount = dateList.length
+
+        // Top Headers
+        sheet.getCell('A1').value = `${prevMonthDate.getMonth() + 1}/${prevMonthDate.getDate()}`
+        sheet.getCell('C1').value = `${currentMonthDate.getMonth() + 1}/${currentMonthDate.getDate()}`
+        sheet.getCell('D1').value = `氏名：${emp.full_name || emp.username || ''}` // D1 instead of E1
+
+        // Data Rows
+        // Row 2 is headers. We insert starting at Row 3 up to Row 15.
+        let teleworkCount = 0
+        let totalWorkMinutes = 0
+        let totalTransport = 0
+
+        const fmt = (mins: number) => {
+            const safeMins = Math.round(mins)
+            const h = Math.floor(safeMins / 60)
+            const m = safeMins % 60
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+        }
+
+        // Filter only days with attendance records (work or telework)
+        const workedDays = dateList.filter(dateObj => {
+            const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`
+            const record = empRecords.find(r => r.date === dateStr)
+            if (!record) return false
+            const daily = calculateDailyStats(record)
+            return daily.workMinutes > 0 || record.is_telework
+        })
+
+        for (let i = 0; i < workedDays.length; i++) {
+            if (i >= 13) break // The template only has 13 rows (3 to 15) available before the footer at row 16
+
+            const dateObj = workedDays[i]
+            const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`
+            
+            const record = empRecords.find(r => r.date === dateStr)
+            
+            const rowIdx = 3 + i
+            const row = sheet.getRow(rowIdx)
+            
+            // Format: M月D日
+            row.getCell(1).value = `${dateObj.getMonth() + 1}月${dateObj.getDate()}日`
+            
+            if (record) {
+                // 在宅
+                if (record.is_telework) {
+                    row.getCell(2).value = '✓'
+                    teleworkCount++
+                }
+
+                // 始業
+                if (record.clock_in) {
+                    const d = new Date(record.clock_in)
+                    row.getCell(3).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                }
+                
+                // 終業
+                if (record.clock_out) {
+                    const d = new Date(record.clock_out)
+                    row.getCell(4).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                }
+
+                // 休憩
+                let breakMins = 0
+                if (record.break_records && record.break_records.length > 0) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    record.break_records.forEach((br: any) => {
+                        if (br.start_time && br.end_time) {
+                            const bStart = new Date(br.start_time).getTime()
+                            const bEnd = new Date(br.end_time).getTime()
+                            breakMins += (bEnd - bStart) / 1000 / 60
+                        }
+                    })
+                }
+                if (breakMins > 0) {
+                    row.getCell(5).value = fmt(breakMins)
+                }
+
+                // 勤務時間
+                const daily = calculateDailyStats(record)
+                if (daily.workMinutes > 0) {
+                    row.getCell(6).value = fmt(daily.workMinutes)
+                    totalWorkMinutes += daily.workMinutes
+                }
+
+                // 場所 & 交通費
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const dayTransports = allTransport.filter((t: any) => t.attendance_record_id === record.id)
+                if (dayTransports.length > 0) {
+                    let cost = 0
+                    const locations = new Set<string>()
+                    
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    dayTransports.forEach((t: any) => {
+                        cost += t.amount || 0
+                        if ((t.origin && t.origin.includes('渋谷')) || (t.destination && t.destination.includes('渋谷'))) {
+                            locations.add('渋谷')
+                        } else if ((t.origin && t.origin.includes('池尻大橋')) || (t.destination && t.destination.includes('池尻大橋'))) {
+                            locations.add('池尻')
+                        }
+                    })
+
+                    // Custom Location display rules
+                    if (locations.size > 0 && !record.is_telework) {
+                        row.getCell(7).value = Array.from(locations).join('・')
+                    }
+                    
+                    if (cost > 0) {
+                        row.getCell(8).value = `\\${cost.toLocaleString()}`
+                        totalTransport += cost
+                    }
+                }
+                
             }
 
-            stats.workMinutes += daily.workMinutes
-            stats.weekdayMinutes += daily.weekdayMinutes
-            stats.satMinutes += daily.saturdayMinutes
-            stats.sunMinutes += daily.sundayMinutes
-            stats.lateNightMinutes += daily.lateNightMinutes
-
-            if (rec.is_telework) stats.teleworkCount++
-        })
-
-        const roleMap: Record<string, string> = {
-            'admin': '管理者',
-            'member': '社員',
-            'arbeit': 'アルバイト',
-            'intern': 'インターン'
+            // Style: simple border
+            row.eachCell({ includeEmpty: true }, (cell) => {
+                cell.border = {
+                    top: {style:'thin'},
+                    left: {style:'thin'},
+                    bottom: {style:'thin'},
+                    right: {style:'thin'}
+                }
+            })
+            row.commit()
         }
 
-        const row = sheet.getRow(currentRow)
+        // Footer update is fixed at row 16 since we don't splice rows
+        const footerStartRow = 16
+        
+        const f1 = sheet.getRow(footerStartRow)
+        // It should have 'テレワーク回数' at A, '合計時間数' at E (carried over from template)
+        f1.getCell(2).value = teleworkCount // B
+        f1.getCell(6).value = fmt(totalWorkMinutes) // F
 
-        // 1: User ID
-        row.getCell(1).value = emp.username || ''
-        // 2: Name
-        row.getCell(2).value = emp.full_name || ''
-        // 3: Role (Group)
-        row.getCell(3).value = roleMap[emp.role || ''] || emp.role || ''
+        const f2 = sheet.getRow(footerStartRow + 1)
+        // A: 120, D: 時給
+        const teleworkTotal = 120 * teleworkCount
+        f2.getCell(2).value = `\\${teleworkTotal.toLocaleString()}` // B
+        f2.getCell(4).value = '時給' // D (Override "自給")
+        
+        const hourlyWage = emp.hourly_wage || 1300
+        f2.getCell(5).value = `\\${hourlyWage.toLocaleString()}` // E
+        
+        const totalHoursDecimal = totalWorkMinutes / 60
+        const salary = Math.floor(totalHoursDecimal * hourlyWage)
+        f2.getCell(6).value = `\\${salary.toLocaleString()}` // F
+        f2.getCell(8).value = `\\${totalTransport.toLocaleString()}` // H
 
-        // 4: Work Days
-        row.getCell(4).value = stats.workDays
-        // 5: Weekday Days
-        row.getCell(5).value = stats.weekdayDays
-        // 6: Sat Days
-        row.getCell(6).value = stats.satDays
-        // 7: Sun Days
-        row.getCell(7).value = stats.sunDays
+        const f3 = sheet.getRow(footerStartRow + 2)
+        // E: 支給額
+        const totalPayment = teleworkTotal + salary + totalTransport
+        f3.getCell(6).value = `\\${totalPayment.toLocaleString()}` // F
 
-        // 8: Total Hours
-        row.getCell(8).value = fmt(stats.workMinutes)
-        // 9: Weekday Hours
-        row.getCell(9).value = fmt(stats.weekdayMinutes)
-        // 10: Sat Hours
-        row.getCell(10).value = fmt(stats.satMinutes)
-        // 11: Sun Hours
-        row.getCell(11).value = fmt(stats.sunMinutes)
-        // 12: Late Night Hours
-        row.getCell(12).value = fmt(stats.lateNightMinutes)
+        const buffer = await workbook.xlsx.writeBuffer()
+        const filename = `${emp.full_name || emp.username}${targetMonth}月_勤務表.xlsx`
+        
+        generatedFiles.push({ name: filename, buffer: Buffer.from(buffer) })
+    }
 
-        // 13: Weekday Overtime 
-        row.getCell(13).value = '0:00'
-        // 14: Deemed Overtime
-        row.getCell(14).value = '0:00'
-        // 15: Holiday Overtime
-        row.getCell(15).value = '0:00'
+    if (generatedFiles.length === 1) {
+        // Return single xlsx
+        const file = generatedFiles[0]
+        const headers = new Headers()
+        headers.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        headers.set('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`)
 
-        // 16-22: Leave (Paid, Substitution, etc.)
-        row.getCell(16).value = 0 // Remaining Paid Leave
-        row.getCell(17).value = 0 // Expired Paid Leave
-        row.getCell(18).value = 0 // Used Paid Leave
-        row.getCell(19).value = 0 // Remaining Sub Leave
-        row.getCell(20).value = 0 // Expired Sub Leave
-        row.getCell(21).value = 0 // Remaining Comp Leave
-        row.getCell(22).value = 0 // Expired Comp Leave
-
-        // 23: Telework Count
-        row.getCell(23).value = stats.teleworkCount
-
-        // Apply styles to the row: Font color black
-        row.eachCell((cell) => {
-            cell.font = { color: { argb: '00000000' } } // Black
+        return new NextResponse(file.buffer as any, { status: 200, headers })
+    } else {
+        // Return ZIP
+        generatedFiles.forEach(file => {
+            zip.file(file.name, file.buffer)
         })
+        const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
+        
+        const headers = new Headers()
+        headers.set('Content-Type', 'application/zip')
+        headers.set('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${month}月_勤務表.zip`)}`)
 
-        row.commit()
-        currentRow++
-    })
-
-    const buffer = await workbook.xlsx.writeBuffer()
-    const shortYear = year.slice(-2)
-    const filename = `30XXX_${shortYear}年${month}月.xlsx`
-    const encodedFilename = encodeURIComponent(filename)
-
-    const headers = new Headers()
-    headers.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    headers.set('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`)
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return new NextResponse(buffer as any, {
-        status: 200,
-        headers
-    })
+        return new NextResponse(zipBuffer as any, { status: 200, headers })
+    }
 }
