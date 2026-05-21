@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Load Excel Template
-    const templatePath = path.join(process.cwd(), 'sample', '勤怠表_サンプル.xlsx')
+    const templatePath = path.join(process.cwd(), 'public', '勤怠表_サンプル.xlsx')
     let templateBuffer: Buffer
     try {
         templateBuffer = await fs.readFile(templatePath)
