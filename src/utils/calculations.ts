@@ -21,11 +21,26 @@ export interface DailyStats {
     saturdayMinutes: number
     sundayMinutes: number
     lateNightMinutes: number
+    breakMinutes: number
 }
 
 export function calculateDailyStats(record: AttendanceRecord): DailyStats {
     const workMinutes = calculateWorkDurationMinutes(record)
     const lateNightMinutes = calculateLateNightWorkMinutes(record)
+
+    // Calculate display break minutes
+    const rawBreakMinutes = calculateBreakDurationMinutes(record.break_records || [])
+    let breakMinutes = rawBreakMinutes
+
+    // Auto break calculation (if work duration before break is 5 hours (300 mins) or more)
+    let totalDuration = 0
+    if (record.clock_in && record.clock_out) {
+        totalDuration = differenceInMinutes(new Date(record.clock_out), new Date(record.clock_in))
+    }
+    const origWorkMinutes = Math.max(0, totalDuration - rawBreakMinutes)
+    if (origWorkMinutes >= 300 && rawBreakMinutes < 60) {
+        breakMinutes = 60
+    }
 
     let weekdayMinutes = 0
     let saturdayMinutes = 0
@@ -49,7 +64,8 @@ export function calculateDailyStats(record: AttendanceRecord): DailyStats {
         weekdayMinutes,
         saturdayMinutes,
         sundayMinutes,
-        lateNightMinutes
+        lateNightMinutes,
+        breakMinutes
     }
 }
 
@@ -74,7 +90,18 @@ export function calculateWorkDurationMinutes(record: AttendanceRecord): number {
     const totalDuration = differenceInMinutes(new Date(record.clock_out), new Date(record.clock_in))
     const breakDuration = calculateBreakDurationMinutes(record.break_records || [])
 
-    return Math.max(0, totalDuration - breakDuration)
+    const origWorkMinutes = Math.max(0, totalDuration - breakDuration)
+
+    // 勤務時間が5時間（300分）以上の場合、1時間（60分）の休憩として自動で入れる
+    // 休憩が1時間未満の場合、その差分も勤務時間から引く
+    if (origWorkMinutes >= 300) {
+        if (breakDuration < 60) {
+            const diff = 60 - breakDuration
+            return Math.max(0, origWorkMinutes - diff)
+        }
+    }
+
+    return origWorkMinutes
 }
 
 /**
@@ -142,6 +169,13 @@ export function calculateLateNightWorkMinutes(record: AttendanceRecord): number 
     return calculateMinutesInZone(start, end, record.break_records || [])
 }
 
+const JST_OFFSET = 9 * 60 * 60 * 1000
+
+function getJSTHour(date: Date): number {
+    const jstDate = new Date(date.getTime() + JST_OFFSET)
+    return jstDate.getUTCHours()
+}
+
 function calculateMinutesInZone(start: Date, end: Date, breaks: BreakRecord[]): number {
     let minutes = 0
     let current = new Date(start)
@@ -152,7 +186,7 @@ function calculateMinutesInZone(start: Date, end: Date, breaks: BreakRecord[]): 
     endTime.setSeconds(0, 0)
 
     while (current < endTime) {
-        const h = current.getHours()
+        const h = getJSTHour(current)
         // Target: 22:00 ~ 07:00 (i.e. >= 22 or < 7)
         if (h >= 22 || h < 7) {
             // Check if inside any break

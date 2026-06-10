@@ -14,6 +14,17 @@ interface EmployeeProfile {
     hourly_wage: number | null
 }
 
+const getJSTTimeStr = (isoString: string) => {
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return ''
+    return new Intl.DateTimeFormat('ja-JP', {
+        timeZone: 'Asia/Tokyo',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).format(d)
+}
+
 export async function POST(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const year = searchParams.get('year') // YYYY
@@ -92,10 +103,14 @@ export async function POST(request: NextRequest) {
     const attendanceIds = allRecords.map(r => r.id).filter(Boolean)
     let allTransport: any[] = []
     if (attendanceIds.length > 0) {
-        const { data: transportRecords } = await supabase
+        const { data: transportRecords, error: transportError } = await supabase
             .from('transportation_records')
             .select('*')
             .in('attendance_record_id', attendanceIds)
+        
+        if (transportError) {
+            console.error('Fetch Transportation Records Error:', transportError)
+        }
         allTransport = transportRecords || []
     }
 
@@ -156,8 +171,23 @@ export async function POST(request: NextRequest) {
             return daily.workMinutes > 0 || record.is_telework
         })
 
+        // 行の動的挿入 (13行を超える場合)
+        const extraRows = workedDays.length - 13
+        if (extraRows > 0) {
+            sheet.insertRows(16, Array(extraRows).fill([]))
+            
+            // 挿入された行に Row 3 (テンプレートのデータ行) のスタイルをコピー
+            for (let r = 0; r < extraRows; r++) {
+                const srcRow = sheet.getRow(3)
+                const destRow = sheet.getRow(16 + r)
+                for (let col = 1; col <= 8; col++) {
+                    destRow.getCell(col).style = srcRow.getCell(col).style
+                }
+                destRow.height = srcRow.height
+            }
+        }
+
         for (let i = 0; i < workedDays.length; i++) {
-            if (i >= 13) break // The template only has 13 rows (3 to 15) available before the footer at row 16
 
             const dateObj = workedDays[i]
             const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`
@@ -179,34 +209,22 @@ export async function POST(request: NextRequest) {
 
                 // 始業
                 if (record.clock_in) {
-                    const d = new Date(record.clock_in)
-                    row.getCell(3).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                    row.getCell(3).value = getJSTTimeStr(record.clock_in)
                 }
                 
                 // 終業
                 if (record.clock_out) {
-                    const d = new Date(record.clock_out)
-                    row.getCell(4).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                    row.getCell(4).value = getJSTTimeStr(record.clock_out)
                 }
 
+                const daily = calculateDailyStats(record)
+
                 // 休憩
-                let breakMins = 0
-                if (record.break_records && record.break_records.length > 0) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    record.break_records.forEach((br: any) => {
-                        if (br.start_time && br.end_time) {
-                            const bStart = new Date(br.start_time).getTime()
-                            const bEnd = new Date(br.end_time).getTime()
-                            breakMins += (bEnd - bStart) / 1000 / 60
-                        }
-                    })
-                }
-                if (breakMins > 0) {
-                    row.getCell(5).value = fmt(breakMins)
+                if (daily.breakMinutes > 0) {
+                    row.getCell(5).value = fmt(daily.breakMinutes)
                 }
 
                 // 勤務時間
-                const daily = calculateDailyStats(record)
                 if (daily.workMinutes > 0) {
                     row.getCell(6).value = fmt(daily.workMinutes)
                     totalWorkMinutes += daily.workMinutes
@@ -242,20 +260,12 @@ export async function POST(request: NextRequest) {
                 
             }
 
-            // Style: simple border
-            row.eachCell({ includeEmpty: true }, (cell) => {
-                cell.border = {
-                    top: {style:'thin'},
-                    left: {style:'thin'},
-                    bottom: {style:'thin'},
-                    right: {style:'thin'}
-                }
-            })
+            // Commit row changes
             row.commit()
         }
 
-        // Footer update is fixed at row 16 since we don't splice rows
-        const footerStartRow = 16
+        // Footer update position shifts based on inserted rows
+        const footerStartRow = 16 + (extraRows > 0 ? extraRows : 0)
         
         const f1 = sheet.getRow(footerStartRow)
         // It should have 'テレワーク回数' at A, '合計時間数' at E (carried over from template)

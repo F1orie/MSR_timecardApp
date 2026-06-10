@@ -46,3 +46,7 @@ sample/
 # scratch directory
 scratch/
 
+# Excel files
+*.xlsx
+*.xls
+
