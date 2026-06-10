@@ -46,7 +46,10 @@ sample/
 # scratch directory
 scratch/
 
-# Excel files
+# Excel files (local use only)
+# public/ 内のテンプレートは例外として追跡対象にする
 *.xlsx
 *.xls
+!public/*.xlsx
+!public/*.xls
 
