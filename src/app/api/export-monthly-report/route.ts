@@ -244,6 +244,10 @@ export async function POST(request: NextRequest) {
                             locations.add('渋谷')
                         } else if ((t.origin && t.origin.includes('池尻大橋')) || (t.destination && t.destination.includes('池尻大橋'))) {
                             locations.add('池尻')
+                        } else {
+                            // 渋谷・池尻大橋以外は入力値をそのまま使用
+                            const label = t.destination || t.origin || ''
+                            if (label) locations.add(label)
                         }
                     })
 

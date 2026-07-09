@@ -78,21 +78,23 @@ export function EditTransportationModal({ isOpen, onClose, record }: EditTranspo
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>出発</Label>
+                            <Label>出発駅（乗車開始）</Label>
                             <Input
                                 name="origin"
                                 value={formData.origin}
                                 onChange={handleChange}
+                                placeholder="例: 北千住"
                                 className="bg-slate-800 border-slate-700 text-white"
                                 required
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>到着</Label>
+                            <Label>到着駅（降車終了）</Label>
                             <Input
                                 name="destination"
                                 value={formData.destination}
                                 onChange={handleChange}
+                                placeholder="例: 明治神宮前"
                                 className="bg-slate-800 border-slate-700 text-white"
                                 required
                             />
@@ -126,15 +128,19 @@ export function EditTransportationModal({ isOpen, onClose, record }: EditTranspo
                     </div>
 
                     <div className="space-y-2">
-                        <Label>金額</Label>
-                        <Input
-                            type="number"
-                            name="amount"
-                            value={formData.amount}
-                            onChange={handleChange}
-                            className="bg-slate-800 border-slate-700 text-white font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            required
-                        />
+                        <Label>金額（円）</Label>
+                        <div className="relative flex items-center">
+                            <span className="absolute left-3 text-gray-400 text-sm z-10">¥</span>
+                            <Input
+                                type="number"
+                                name="amount"
+                                value={formData.amount}
+                                onChange={handleChange}
+                                placeholder="例: 1200"
+                                className="bg-slate-800 border-slate-700 text-white font-mono pl-7 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                required
+                            />
+                        </div>
                     </div>
 
                     {error && <p className="text-red-400 text-sm">{error}</p>}
