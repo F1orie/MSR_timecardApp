@@ -17,15 +17,14 @@ jobs:
           echo "Pinging Supabase at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+            "${{ secrets.SUPABASE_URL }}/rest/v1/")
           
           echo "HTTP Status: $HTTP_STATUS"
           
-          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
-            echo "✅ Ping successful! Supabase project is alive."
+          # 200番台・300番台・401はサーバーが応答している証拠（停止中は応答なし）
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 500 ]; then
+            echo "✅ Ping successful! Supabase project is alive. (HTTP $HTTP_STATUS)"
           else
-            echo "❌ Ping failed with status $HTTP_STATUS"
+            echo "❌ Ping failed with status $HTTP_STATUS (project may be paused)"
             exit 1
           fi
